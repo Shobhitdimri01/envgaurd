@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/Shobhitdimri01/envgaurd/internal/validate"
@@ -203,7 +205,9 @@ func PrintEnvVars() {
 		if isSensitive(key) {
 			val = maskValue(val)
 		}
-		fmt.Printf("%-20s = %s\n", key, val)
+		if !isSystemEnv(key) {
+			fmt.Printf("%-20s = %s\n", key, val)
+		}
 	}
 }
 
@@ -233,6 +237,23 @@ func maskValue(val string) string {
 		return strings.Repeat("*", len(val))
 	}
 	return val[:2] + strings.Repeat("*", len(val)-4) + val[len(val)-2:]
+}
+
+// Returns true if the key should be considered a system variable
+func isSystemEnv(key string) bool {
+	// Detect the OS and adjust filtering based on that
+	switch runtime.GOOS {
+	case "linux", "darwin": // macOS and Linux
+		pattern := "^(PATH|HOME|USER|SHELL|TMPDIR|XPC|TERM|LOGNAME)$"
+		match, _ := regexp.MatchString(pattern, key)
+		return match
+	case "windows":
+		pattern := "^(PATH|USERPROFILE|USERNAME|TEMP|TMP|SHELL|TERM)$"
+		match, _ := regexp.MatchString(pattern, key)
+		return match
+	default:
+		return false
+	}
 }
 
 /*
