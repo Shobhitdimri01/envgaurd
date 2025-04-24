@@ -1,11 +1,9 @@
 package validate
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 )
 
 func Validate(value string, def any) any {
@@ -31,19 +29,19 @@ func Validate(value string, def any) any {
 		}
 		return val
 	case []string:
-		val, err := toStringSlice(value)
+		val, err := parsetoStringSlice(value)
 		if err != nil {
 			panic(err.Error())
 		}
 		return val
 	case []int:
-		val, err := toIntegerSlice(value)
+		val, err := parsetoIntegerSlice(value)
 		if err != nil {
 			panic(err.Error())
 		}
 		return val
 	case map[string]any:
-		val, err := toJsonMap(value)
+		val, err := parsetoJsonMap(value)
 		if err != nil {
 			panic(err)
 		}
@@ -51,48 +49,4 @@ func Validate(value string, def any) any {
 	default:
 		panic(fmt.Sprintf("Unsupported type: %v", reflect.TypeOf(def)))
 	}
-}
-
-func toStringSlice(val any) ([]string, error) {
-	s, ok := val.(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid data type not string")
-	}
-	commaValues := strings.Split(s, ",")
-	if len(commaValues) < 1 {
-		return nil, fmt.Errorf("comma missing in defining value")
-	}
-	var strArrayVal []string
-	strArrayVal = append(strArrayVal, commaValues...)
-	return strArrayVal, nil
-}
-
-func toIntegerSlice(val any) ([]int, error) {
-	s, ok := val.(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid data type not integer")
-	}
-	commaValues := strings.Split(s, ",")
-	if len(commaValues) < 1 {
-		return nil, fmt.Errorf("comma missing in defining value")
-	}
-	var numIntArr []int
-
-	for _, v := range commaValues {
-		val, err := strconv.Atoi(v)
-		if err != nil {
-			continue
-		}
-		numIntArr = append(numIntArr, val)
-	}
-	return numIntArr, nil
-}
-
-func toJsonMap(value string) (map[string]any, error) {
-	var jsonVal map[string]any
-	err := json.Unmarshal([]byte(value), jsonVal)
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert json into map:%v", err)
-	}
-	return jsonVal, nil
 }
