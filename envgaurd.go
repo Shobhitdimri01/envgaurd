@@ -1,90 +1,87 @@
 package envgaurd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/Shobhitdimri01/envgaurd/internal/utils"
 	"github.com/Shobhitdimri01/envgaurd/internal/validate"
 )
 
-// Load manually loads the .env file into environment variables
-// Only sets environment variable if not already set it doesn't override
-func Load(filepath string) error {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return fmt.Errorf("unable to open .env file:%v", err)
-	}
-	defer file.Close()
-	scanLine := bufio.NewScanner(file)
-	for scanLine.Scan() {
-		line := scanLine.Text()
-		// Ignore comments or empty lines
-		if len(line) == 0 || line[0] == '#' {
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		//invalid key-value
-		if len(parts) != 2 {
-			continue //invalid format, skip
-		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
-		if os.Getenv(key) == "" { // Only set if not already set
-			os.Setenv(key, val)
-			userdefinedEnv[key] = true
-		}
-	}
-	if err := scanLine.Err(); err != nil {
-		return fmt.Errorf("error reading .env file: %v", err)
-	}
-	return nil
+var sensitiveInfo = &sensitiveData{
+	maskingKeys: make(map[string]*envInfo),
 }
 
-// LoadFromFileWithValidation loads environment variables from a file and validates them
-func LoadFromFileWithValidation(filepath string, requiredKeys []string) error {
-	if err := Load(filepath); err != nil {
+type sensitiveData struct {
+	maskingKeys map[string]*envInfo
+}
+
+type envInfo struct {
+	value any
+	mask  bool
+}
+
+func setEnv(tempEnv map[string]string) {
+	for key, val := range tempEnv {
+		os.Setenv(key, val)
+		sensitiveInfo.maskingKeys[strings.ToUpper(key)] = &envInfo{value: val}
+	}
+}
+
+// Load manually loads the .env file into environment variables
+// Only sets environment variable if not already set it doesn't override
+func Load(path string) error {
+	tempEnv := make(map[string]string)
+	err := validate.ParseEnvFile(path, func(key, val string) {
+		if os.Getenv(key) == "" {
+			tempEnv[key] = val
+		}
+	})
+	if err != nil {
 		return err
 	}
-	for _, key := range requiredKeys {
-		Required(key) // Check if required keys are present
-	}
+	setEnv(tempEnv)
 	return nil
 }
 
 // OverLoad overwrite all the existing environment variable
-func OverLoad(filepath string) error {
-	file, err := os.Open(filepath)
+func OverLoad(path string) error {
+	tempEnv := make(map[string]string)
+	err := validate.ParseEnvFile(path, func(key, val string) {
+		tempEnv[key] = val
+	})
 	if err != nil {
-		return fmt.Errorf("unable to open .env file: %v", err)
+		return err
 	}
-	defer file.Close()
+	sensitiveInfo.clear()
+	setEnv(tempEnv)
+	return nil
+}
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+// LoadFromFileWithValidation loads environment variables from a file and validates them
+func LoadFromFileWithValidation(path string, requiredKeys []string) error {
+	tempEnv := make(map[string]string)
 
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	// Step 1: Parse the file into a temporary map
+	err := validate.ParseEnvFile(path, func(key, val string) {
+		tempEnv[key] = val
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Error reading env file: %v", err))
+	}
+	// Step 2: Validate required keys
+	for _, key := range requiredKeys {
+		if val, ok := tempEnv[key]; !ok {
+			panic(fmt.Sprintf("Missing required environment variable: %s", key))
+		} else if val == "" {
+			panic(fmt.Sprintf("Missing required value for key: %s", key))
 		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		val := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
-		os.Setenv(key, val)
 	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading .env file: %v", err)
-	}
+
+	// Step 3: Set the environment variables
+	setEnv(tempEnv)
 	return nil
 }
 
@@ -196,6 +193,7 @@ func GetEnvAsMap(key string, defaultVal map[string]any) map[string]any {
 	return mapValues
 }
 
+// ReplaceEnvPlaceholders replaces ${VAR_NAME} in the input string with its corresponding env value
 func GetPlaceHolderValue(key string, defaultVal string) string {
 	re := regexp.MustCompile(`\$\{([A-Za-z0-9_]+)\}`)
 	val := os.Getenv(key)
@@ -213,64 +211,54 @@ func GetPlaceHolderValue(key string, defaultVal string) string {
 func PrintEnvVars() {
 	for _, env := range os.Environ() {
 		parts := strings.SplitN(env, "=", 2)
-		key := parts[0]
-		val := parts[1]
-		if isSensitive(key) {
-			val = maskValue(val)
-		}
-		if !isSystemEnv(key) {
+		key := strings.TrimSpace(parts[0])
+		envInfo, ok := sensitiveInfo.maskingKeys[strings.ToUpper(key)]
+		if ok {
+			val := envInfo.value
+			if envInfo.mask {
+				val = maskValue(envInfo.value)
+			}
 			fmt.Printf("%-20s = %s\n", key, val)
 		}
 	}
 }
 
-// Checks if the key should be masked in log output
-func isSensitive(key string) bool {
-	key = strings.ToUpper(key)
-	for k := range maskingKeys {
-		if strings.Contains(key, k) {
-			return true
-		}
-	}
-	return false
-}
-
-var maskingKeys = make(map[string]bool)
-var userdefinedEnv = make(map[string]bool)
-
-// Masking lets users define which keys are considered sensitive will be shown encrypted(eg.xxxx)
+// Masking lets users define which key or keys are considered sensitive will be shown encrypted(eg.xxxx) in console
 func Masking(keys ...string) {
-	for _, key := range keys {
-		maskingKeys[strings.ToUpper(key)] = true
+	if sensitiveInfo.maskingKeys == nil {
+		sensitiveInfo.maskingKeys = make(map[string]*envInfo)
+	}
+	for _, v := range keys {
+		k := strings.TrimSpace(v)
+		val, ok := os.LookupEnv(k)
+		if !ok {
+			panic(fmt.Sprintf("key with name:%s not found in .env file\n", k))
+		}
+		sensitiveInfo.maskingKeys[strings.ToUpper(k)] = &envInfo{
+			value: val,
+			mask:  true,
+		}
 	}
 }
 
 // Masks the value for printing
-func maskValue(val string) string {
-	if len(val) <= 4 {
-		return strings.Repeat("*", len(val))
+func maskValue(val any) string {
+	switch val := val.(type) {
+	case string:
+		v := val
+		if len(v) <= 4 {
+			return strings.Repeat("*", len(v))
+		}
+		return v[:2] + strings.Repeat("*", len(v)-4) + v[len(v)-2:]
+	case int, float64, bool:
+		return "***"
+	default:
+		return "******"
 	}
-	return val[:2] + strings.Repeat("*", len(val)-4) + val[len(val)-2:]
 }
 
-// Returns true if the key should be considered a system variable
-func isSystemEnv(key string) bool {
-	// Detect the OS and adjust filtering based on that
-	if userdefinedEnv[key] {
-		return false
-	}
-	var pattern string
-	switch runtime.GOOS {
-	case "linux", "darwin":
-		pattern = "^(PATH|HOME|USER|SHELL|TMPDIR|XPC|TERM|LOGNAME)$"
-	case "windows":
-		pattern = "^(PATH|USERPROFILE|USERNAME|TEMP|TMP|SHELL|TERM)$"
-	default:
-		return true
-	}
-
-	match, _ := regexp.MatchString(pattern, key)
-	return match
+func (s *sensitiveData) clear() {
+	s.maskingKeys = make(map[string]*envInfo)
 }
 
 /*
