@@ -26,3 +26,17 @@ func ReplaceEnvPlaceholders(pattern *regexp.Regexp, input string) string {
 	result.WriteString(input[begin:])
 	return result.String()
 }
+
+func StripInlineComment(s string) string {
+	// Find unquoted '#' and remove everything after
+	inQuotes := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '"' || s[i] == '\'' {
+			inQuotes = !inQuotes
+		}
+		if s[i] == '#' && !inQuotes {
+			return strings.TrimSpace(s[:i])
+		}
+	}
+	return strings.TrimSpace(s)
+}
