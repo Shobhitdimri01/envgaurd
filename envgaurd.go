@@ -11,14 +11,14 @@ import (
 )
 
 var sensitiveInfo = &sensitiveData{
-	maskingKeys: make(map[string]*envInfo),
+	maskingKeys: make(map[string]*envMetaData),
 }
 
 type sensitiveData struct {
-	maskingKeys map[string]*envInfo
+	maskingKeys map[string]*envMetaData
 }
 
-type envInfo struct {
+type envMetaData struct {
 	value any
 	mask  bool
 }
@@ -26,7 +26,7 @@ type envInfo struct {
 func setEnv(tempEnv map[string]string) {
 	for key, val := range tempEnv {
 		os.Setenv(key, val)
-		sensitiveInfo.maskingKeys[strings.ToUpper(key)] = &envInfo{value: val}
+		sensitiveInfo.maskingKeys[strings.ToUpper(key)] = &envMetaData{value: val}
 	}
 }
 
@@ -35,8 +35,11 @@ func setEnv(tempEnv map[string]string) {
 func Load(path string) error {
 	tempEnv := make(map[string]string)
 	err := validate.ParseEnvFile(path, func(key, val string) {
-		if os.Getenv(key) == "" {
+		value := os.Getenv(key)
+		if value == "" {
 			tempEnv[key] = val
+		} else {
+			tempEnv[key] = value
 		}
 	})
 	if err != nil {
@@ -79,7 +82,6 @@ func LoadFromFileWithValidation(path string, requiredKeys []string) error {
 			panic(fmt.Sprintf("Missing required value for key: %s", key))
 		}
 	}
-
 	// Step 3: Set the environment variables
 	setEnv(tempEnv)
 	return nil
@@ -212,13 +214,13 @@ func PrintEnvVars() {
 	for _, env := range os.Environ() {
 		parts := strings.SplitN(env, "=", 2)
 		key := strings.TrimSpace(parts[0])
-		envInfo, ok := sensitiveInfo.maskingKeys[strings.ToUpper(key)]
+		envMetaData, ok := sensitiveInfo.maskingKeys[strings.ToUpper(key)]
 		if ok {
-			val := envInfo.value
-			if envInfo.mask {
-				val = maskValue(envInfo.value)
+			val := envMetaData.value
+			if envMetaData.mask {
+				val = maskValue(envMetaData.value)
 			}
-			fmt.Printf("%-20s = %s\n", key, val)
+			fmt.Printf("%-2s = %s\n", key, val)
 		}
 	}
 }
@@ -226,7 +228,7 @@ func PrintEnvVars() {
 // Masking lets users define which key or keys are considered sensitive will be shown encrypted(eg.xxxx) in console
 func Masking(keys ...string) {
 	if sensitiveInfo.maskingKeys == nil {
-		sensitiveInfo.maskingKeys = make(map[string]*envInfo)
+		sensitiveInfo.maskingKeys = make(map[string]*envMetaData)
 	}
 	for _, v := range keys {
 		k := strings.TrimSpace(v)
@@ -234,7 +236,7 @@ func Masking(keys ...string) {
 		if !ok {
 			panic(fmt.Sprintf("key with name:%s not found in .env file\n", k))
 		}
-		sensitiveInfo.maskingKeys[strings.ToUpper(k)] = &envInfo{
+		sensitiveInfo.maskingKeys[strings.ToUpper(k)] = &envMetaData{
 			value: val,
 			mask:  true,
 		}
@@ -258,7 +260,24 @@ func maskValue(val any) string {
 }
 
 func (s *sensitiveData) clear() {
-	s.maskingKeys = make(map[string]*envInfo)
+	s.maskingKeys = make(map[string]*envMetaData)
+}
+
+// ResetEnv clears all environment variables for the current process.
+// It also removes all tracked sensitive values.
+// Returns an error if any call to os.Unsetenv fails.
+func ResetEnv() error {
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) == 2 {
+			if err := os.Unsetenv(parts[0]); err != nil {
+				return err
+			}
+		}
+	}
+	//reseting map
+	sensitiveInfo.maskingKeys = map[string]*envMetaData{}
+	return nil
 }
 
 /*
