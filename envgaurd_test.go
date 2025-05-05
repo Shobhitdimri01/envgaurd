@@ -146,8 +146,8 @@ func TestPrintEnvVars(t *testing.T) {
 	}
 
 	expected := []string{
-		fmt.Sprintf("%-2s = %s", "DB_PASSWORD", "su*******et"), // 11 asterisks for "supersecret"
-		fm.Sprintf("%-2s = %s", "APP_ENV", "production"),
+		fm.Sprintf("%-2s = %s", "DB_PASSWORD", "su*******et"), // 11 asterisks for "supersecret"
+		fmt.Sprintf("%-2s = %s", "APP_ENV", "production"),
 	}
 
 	original := os.Stdout
