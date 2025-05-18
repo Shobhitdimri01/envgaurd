@@ -168,3 +168,296 @@ func TestPrintEnvVars(t *testing.T) {
 		}
 	}
 }
+
+func TestGetInt(t *testing.T) {
+	testTable := []struct {
+		tcName      string
+		key         string
+		value       string
+		defaultVal  int
+		expectedRes any
+	}{
+		{"tc01", "Port", "8080", 0, 8080},                                 //passing tc
+		{"tc02", "Port", "abc", 0, "invalid value expected Integer type"}, // should panic
+		{"tc03", "Port", "", 5600, 5600},                                  //should take default value
+		{"tc04", "Port", "8080", 3441, 8080},                              // shouldn't take default value
+	}
+
+	for _, j := range testTable {
+		t.Run(j.tcName, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err := fmt.Sprint(r)
+					if err != j.expectedRes {
+						t.Errorf("expected res: %s but got %s", j.expectedRes, err)
+					}
+				}
+			}()
+
+			if err := os.Setenv(j.key, j.value); err != nil {
+				t.Error(err)
+			}
+
+			defer os.Unsetenv(j.key)
+			val := GetInt(j.key, j.defaultVal)
+			if j.key == "" {
+				if j.defaultVal != val {
+					t.Errorf("Expected result %d but got %d", j.defaultVal, val)
+				}
+			} else {
+				if val != j.expectedRes {
+					t.Errorf("Expected result %d but got %d", j.expectedRes, val)
+				}
+			}
+
+		})
+	}
+}
+func TestGetStr(t *testing.T) {
+	testTable := []struct {
+		tcName      string
+		key         string
+		value       string
+		defaultVal  string
+		expectedRes any
+	}{
+		{"tc01", "module_name", "envgaurd", "", "envgaurd"},            //passing tc
+		{"tc02", "module_name", "123", "", "123"},                      //should be string
+		{"tc03", "module_name", "", "envgaurd-v2", "envgaurd-v2"},      //should take default value
+		{"tc04", "module_name", "envgaurd", "envgaurd-v2", "envgaurd"}, // shouldn't take default value
+	}
+
+	for _, j := range testTable {
+		if err := os.Setenv(j.key, j.value); err != nil {
+			t.Error(err)
+		}
+
+		defer os.Unsetenv(j.key)
+		val := GetStr(j.key, j.defaultVal)
+		if j.key == "" {
+			if j.defaultVal != val {
+				if j.defaultVal == "" {
+					t.Errorf(`tcname : %s Expected result {""} but got {%s}`, j.tcName, val)
+				} else {
+					t.Errorf(`tcname : %s Expected result {%s} but got {%s}`, j.tcName, j.defaultVal, val)
+				}
+
+			}
+		} else {
+			if val != j.expectedRes {
+				if j.expectedRes == "" {
+					t.Errorf(`tcname : %s Expected result {""} but got {%s}`, j.tcName, val)
+				} else {
+					t.Errorf(`tcname : %s Expected result {%s} but got {%s}`, j.tcName, j.defaultVal, val)
+				}
+			}
+		}
+	}
+}
+
+func TestGetBool(t *testing.T) {
+	testTable := []struct {
+		tcName      string
+		key         string
+		value       string
+		defaultVal  bool
+		expectedRes any
+	}{
+		{"tc01", "UseCache", "false", true, false},                                  //passing tc
+		{"tc02", "UseCache", "abc4d", false, "invalid value expected Boolean type"}, // should panic
+		{"tc03", "UseCache", "", true, true},                                        //should take default value
+		{"tc04", "UseCache", "true", false, true},                                   // shouldn't take default value
+	}
+
+	for _, j := range testTable {
+		t.Run(j.tcName, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err := fmt.Sprint(r)
+					if err != j.expectedRes {
+						t.Errorf("expected res: %s but got %s", j.expectedRes, err)
+					}
+				}
+			}()
+
+			if err := os.Setenv(j.key, j.value); err != nil {
+				t.Error(err)
+			}
+
+			defer os.Unsetenv(j.key)
+			val := GetBool(j.key, j.defaultVal)
+			if j.key == "" {
+				if j.defaultVal != val {
+					t.Errorf("Expected result %t but got %t", j.defaultVal, val)
+				}
+			} else {
+				if val != j.expectedRes {
+					t.Errorf("Expected result %t but got %t", j.expectedRes, val)
+				}
+			}
+
+		})
+	}
+}
+func TestGetFloat64(t *testing.T) {
+	testTable := []struct {
+		tcName      string
+		key         string
+		value       string
+		defaultVal  float64
+		expectedRes any
+	}{
+		{"tc01", "MaxLoad", "3.54", 1, 3.54},                                       //passing tc
+		{"tc02", "MaxLoad", "5", 7, 5.00},                                          // should panic
+		{"tc03", "MaxLoad", "", 8.21, 8.21},                                        //should take default value
+		{"tc04", "MaxLoad", "9.8", 3.5, 9.8},                                       // shouldn't take default value
+		{"tc05", "MaxLoad", "no-load", 4.2, "invalid value expected float64 type"}, // should panic
+	}
+
+	for _, j := range testTable {
+		t.Run(j.tcName, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err := fmt.Sprint(r)
+					if err != j.expectedRes {
+						t.Errorf("expected res: %s but got %s", j.expectedRes, err)
+					}
+				}
+			}()
+
+			if err := os.Setenv(j.key, j.value); err != nil {
+				t.Error(err)
+			}
+
+			defer os.Unsetenv(j.key)
+			val := GetFloat64(j.key, j.defaultVal)
+			if j.key == "" {
+				if j.defaultVal != val {
+					t.Errorf("Expected result %f but got %f", j.defaultVal, val)
+				}
+			} else {
+				if val != j.expectedRes {
+					t.Errorf("Expected result %f but got %f", j.expectedRes, val)
+				}
+			}
+
+		})
+	}
+}
+
+func TestGetStringArray(t *testing.T) {
+	testTable := []struct {
+		tcName      string
+		key         string
+		value       string
+		defaultVal  []string
+		expectedRes any
+	}{
+		{"tc01", "allowed_ip", "10.254.1.21,10.33.12.5,127.0.0.1", []string{"127.0.0.1,localhost:8080"}, []string{"10.254.1.21,10.33.12.5,127.0.0.1"}}, //passing tc
+		{"tc02", "allowed_ip", "localhost:8080", []string{"12.22.7", "12.23.45.6"}, []string{"localhost:8080"}},                                        // should panic
+		{"tc03", "allowed_ip", "", []string{"www.google.com", "www.mozila-firefox.com"}, []string{"www.google.com", "www.mozila-firefox.com"}},         //should take default value
+	}
+
+	for _, j := range testTable {
+		t.Run(j.tcName, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err := fmt.Sprint(r)
+					if err != j.expectedRes {
+						t.Errorf("expected res: %s but got %s", j.expectedRes, err)
+					}
+				}
+			}()
+
+			if err := os.Setenv(j.key, j.value); err != nil {
+				t.Error(err)
+			}
+
+			defer os.Unsetenv(j.key)
+			val := GetStringArray(j.key, j.defaultVal)
+			if j.key == "" {
+				if len(val) != len(j.defaultVal) {
+					t.Errorf("invalid len of array expected %d but got %d", len(val), len(j.defaultVal))
+				}
+				for _, i := range val {
+					found := false
+					for _, j := range j.defaultVal {
+						if i == j {
+							found = true
+							break
+						}
+					}
+					if found == false {
+						t.Errorf("invalid value of array expected %s couldn't be found", i)
+					}
+				}
+			} else {
+				for _, i := range val {
+					found := false
+					for _, j := range j.defaultVal {
+						if i == j {
+							found = true
+							break
+						}
+					}
+					if found == false {
+						t.Errorf("invalid value of array expected %s couldn't be found", i)
+					}
+				}
+			}
+
+		})
+	}
+}
+
+/*
+func TestGetIntArray(t *testing.T) {
+	testTable := []struct {
+		tcName      string
+		key         string
+		value       string
+		defaultVal  bool
+		expectedRes any
+	}{
+		{"tc01", "Products", "false", true, false},                                  //passing tc
+		{"tc02", "Products", "abc4d", false, "invalid value expected Boolean type"}, // should panic
+		{"tc03", "Products", "", true, true},                                        //should take default value
+		{"tc04", "Products", "true", false, true},                                   // shouldn't take default value
+	}
+
+	for _, j := range testTable {
+		t.Run(j.tcName, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r != nil {
+					err := fmt.Sprint(r)
+					if err != j.expectedRes {
+						t.Errorf("expected res: %s but got %s", j.expectedRes, err)
+					}
+				}
+			}()
+
+			if err := os.Setenv(j.key, j.value); err != nil {
+				t.Error(err)
+			}
+
+			defer os.Unsetenv(j.key)
+			val := GetBool(j.key, j.defaultVal)
+			if j.key == "" {
+				if j.defaultVal != val {
+					t.Errorf("Expected result %t but got %t", j.defaultVal, val)
+				}
+			} else {
+				if val != j.expectedRes {
+					t.Errorf("Expected result %t but got %t", j.expectedRes, val)
+				}
+			}
+
+		})
+	}
+}
+*/

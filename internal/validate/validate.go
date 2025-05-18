@@ -11,13 +11,13 @@ func Validate(value string, def any) any {
 	case int:
 		val, err := strconv.Atoi(value)
 		if err != nil {
-			panic("invalid value expected Integer type ")
+			panic("invalid value expected Integer type")
 		}
 		return val
 	case bool:
 		val, err := strconv.ParseBool(value)
 		if err != nil {
-			panic("invalid value expected Boolean type ")
+			panic("invalid value expected Boolean type")
 		}
 		return val
 	case string:

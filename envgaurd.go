@@ -95,7 +95,7 @@ func Required(key string) {
 	}
 }
 
-// GetInt extract Value from env dot file and return Integer Value if not given returns default value
+//GetInt extract Value from env dot file and return Integer Value if not given returns default value
 func GetInt(key string, defaultVal int) int {
 	value := os.Getenv(key)
 	if value == "" {
